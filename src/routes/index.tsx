@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Home,
@@ -28,6 +28,13 @@ import {
   BadgeCheck,
   Calendar,
   Zap,
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  CheckCircle2,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import { Toaster } from "../components/ui/sonner";
 import {
@@ -41,14 +48,6 @@ import {
   type LatLng,
 } from "../lib/rides";
 import { LocationAutocomplete } from "../components/location-autocomplete";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  Home, Search, PlusCircle, User, Bell, MapPin, Clock, Users, Star,
-  Shield, Sparkles, ArrowRight, ArrowLeft, Navigation, Phone, AlertTriangle,
-  GraduationCap, Mail, ChevronRight, Wallet, Car, LogOut, Settings,
-  BadgeCheck, Calendar, Zap, Upload, FileText, Image as ImageIcon,
-  Loader2, CheckCircle2, RefreshCw, X,
-} from "lucide-react";
 import { analyzeTimetable, type TimetableAnalysis } from "../lib/timetable";
 import { sendSos } from "../lib/sos";
 
@@ -667,10 +666,10 @@ function AIRideCard({ go }: { go: (s: Screen) => void }) {
               ))}
             </div>
             <button
-              onClick={() => go("details")}
+              onClick={() => go("find")}
               className="rounded-full bg-white text-[color:var(--foreground)] px-4 py-2 text-sm font-semibold flex items-center gap-1"
             >
-              Join ride <ArrowRight className="h-3.5 w-3.5" />
+              Find rides <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
         </>
@@ -1257,17 +1256,17 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
     : "Rohan K.";
   const driverInitials = ride?.driver.initials ?? "RK";
   const driverColor = ride?.driver.color ?? "#4F46E5";
-// Live trip / driver data used by the Call and SOS actions.
-const liveRide = {
-  rideId: "ride_rk_chd_0115",
-  userId: "aditi_sharma",
-  driver: { name: "Rohan K.", phone: "+919876543210" },
-};
 
-function LiveTripScreen({ back }: { back: () => void }) {
+  // Live trip / driver data used by the Call and SOS actions.
+  const liveRide = {
+    rideId: rideId ?? "ride_rk_chd_0115",
+    userId: "aditi_sharma",
+    driver: { name: driverName, phone: "+919876543210" },
+  };
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ message: string; ok: boolean } | null>(null);
   const toastTimer = useRef<number | null>(null);
 
   useEffect(() => () => {
@@ -1275,9 +1274,9 @@ function LiveTripScreen({ back }: { back: () => void }) {
   }, []);
 
   function showToast(message: string, ok: boolean) {
-    setToast({ message, ok });
+    setToastMessage({ message, ok });
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+    toastTimer.current = window.setTimeout(() => setToastMessage(null), 3500);
   }
 
   function confirmSos() {
@@ -1391,12 +1390,10 @@ function LiveTripScreen({ back }: { back: () => void }) {
 
       {/* SOS floating */}
       <button
+        onClick={() => setConfirmOpen(true)}
         className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
         style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}
       >
-        onClick={() => setConfirmOpen(true)}
-        className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
-        style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}>
         <AlertTriangle className="h-6 w-6" />
       </button>
 
@@ -1433,16 +1430,11 @@ function LiveTripScreen({ back }: { back: () => void }) {
           </div>
 
           <button
-            className="mt-4 w-full rounded-2xl py-3.5 font-semibold text-white flex items-center justify-center gap-2"
-            style={{
-              background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))",
-            }}
-          >
-            <AlertTriangle className="h-4 w-4" /> Emergency SOS
             onClick={() => setConfirmOpen(true)}
             disabled={sending}
             className="mt-4 w-full rounded-2xl py-3.5 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-70"
-            style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}>
+            style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}
+          >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
             {sending ? "Sending SOS…" : "Emergency SOS"}
           </button>
@@ -1450,14 +1442,14 @@ function LiveTripScreen({ back }: { back: () => void }) {
       </div>
 
       {/* Success / error toast */}
-      {toast && (
+      {toastMessage && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 glass rounded-2xl px-4 py-3 flex items-center gap-2 shadow-lg">
-          {toast.ok ? (
+          {toastMessage.ok ? (
             <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)] shrink-0" />
           ) : (
             <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
           )}
-          <span className="text-sm font-semibold">{toast.message}</span>
+          <span className="text-sm font-semibold">{toastMessage.message}</span>
         </div>
       )}
 
