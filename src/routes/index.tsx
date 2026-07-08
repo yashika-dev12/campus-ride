@@ -44,6 +44,7 @@ import {
   formatDate,
   formatTime,
   MIN_DATE,
+  distanceKm,
   type Ride,
   type LatLng,
 } from "../lib/rides";
@@ -58,6 +59,9 @@ export const Route = createFileRoute("/")({
 type Screen = "login" | "home" | "offer" | "find" | "details" | "live" | "profile";
 
 const ALL_PREFERENCES = ["Music OK", "AC on", "No smoking", "Girls only", "Quiet ride"];
+
+/** How close (km) a ride's geocoded endpoint must be to a searched location to match. */
+const MATCH_RADIUS_KM = 25;
 
 function CampusRideApp() {
   const [screen, setScreen] = useState<Screen>("login");
@@ -913,31 +917,58 @@ function FindRideScreen({ back, onSelect }: { back: () => void; onSelect: (id: s
 
   const [pickup, setPickup] = useState("");
   const [destination, setDestination] = useState("");
+  const [pickupCoords, setPickupCoords] = useState<LatLng | null>(null);
+  const [destinationCoords, setDestinationCoords] = useState<LatLng | null>(null);
   const [date, setDate] = useState("");
   const [seats, setSeats] = useState(1);
   const [applied, setApplied] = useState<{
     pickup: string;
     destination: string;
+    pickupCoords: LatLng | null;
+    destinationCoords: LatLng | null;
     date: string;
     seats: number;
   } | null>(null);
 
   // Matching active rides created through Offer a Ride, filtered by the applied
   // search. Before the first search, every ride with seats available is shown.
+  // An endpoint matches when the geocoded coordinates are within MATCH_RADIUS_KM
+  // (precise, used when both sides were picked from autocomplete) or, failing
+  // that, when the names loosely match — so typed text and seed rides still work.
   const matches = useMemo(() => {
     const active = rides.filter((r) => r.availableSeats > 0);
     if (!applied) return active;
+
+    const endpointMatches = (
+      rideName: string,
+      rideCoords: LatLng | null | undefined,
+      query: string,
+      queryCoords: LatLng | null,
+    ) => {
+      if (!query.trim() && !queryCoords) return true; // field not used as a filter
+      if (queryCoords && rideCoords && distanceKm(queryCoords, rideCoords) <= MATCH_RADIUS_KM)
+        return true;
+      return locationMatches(rideName, query);
+    };
+
     return active.filter(
       (r) =>
-        locationMatches(r.from, applied.pickup) &&
-        locationMatches(r.to, applied.destination) &&
+        endpointMatches(r.from, r.fromCoords, applied.pickup, applied.pickupCoords) &&
+        endpointMatches(r.to, r.toCoords, applied.destination, applied.destinationCoords) &&
         (!applied.date || r.date === applied.date) &&
         r.availableSeats >= applied.seats,
     );
   }, [rides, applied]);
 
   const handleFind = () => {
-    setApplied({ pickup, destination, date, seats: Math.max(1, seats) });
+    setApplied({
+      pickup,
+      destination,
+      pickupCoords,
+      destinationCoords,
+      date,
+      seats: Math.max(1, seats),
+    });
   };
 
   return (
@@ -953,11 +984,18 @@ function FindRideScreen({ back, onSelect }: { back: () => void; onSelect: (id: s
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                 From
               </p>
-              <input
+              <LocationAutocomplete
                 value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
+                onValueChange={(v) => {
+                  setPickup(v);
+                  setPickupCoords(null);
+                }}
+                onSelect={(loc) => {
+                  setPickup(loc.name);
+                  setPickupCoords({ lat: loc.lat, lng: loc.lng });
+                }}
                 placeholder="Pickup Location"
-                className="font-semibold truncate bg-transparent outline-none w-full"
+                inputClassName="font-semibold truncate bg-transparent outline-none w-full"
               />
             </div>
           </div>
@@ -969,11 +1007,18 @@ function FindRideScreen({ back, onSelect }: { back: () => void; onSelect: (id: s
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                 To
               </p>
-              <input
+              <LocationAutocomplete
                 value={destination}
-                onChange={(e) => setDestination(e.target.value)}
+                onValueChange={(v) => {
+                  setDestination(v);
+                  setDestinationCoords(null);
+                }}
+                onSelect={(loc) => {
+                  setDestination(loc.name);
+                  setDestinationCoords({ lat: loc.lat, lng: loc.lng });
+                }}
                 placeholder="Destination"
-                className="font-semibold truncate bg-transparent outline-none w-full"
+                inputClassName="font-semibold truncate bg-transparent outline-none w-full"
               />
             </div>
           </div>
