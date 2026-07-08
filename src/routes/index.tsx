@@ -41,6 +41,16 @@ import {
   type LatLng,
 } from "../lib/rides";
 import { LocationAutocomplete } from "../components/location-autocomplete";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Home, Search, PlusCircle, User, Bell, MapPin, Clock, Users, Star,
+  Shield, Sparkles, ArrowRight, ArrowLeft, Navigation, Phone, AlertTriangle,
+  GraduationCap, Mail, ChevronRight, Wallet, Car, LogOut, Settings,
+  BadgeCheck, Calendar, Zap, Upload, FileText, Image as ImageIcon,
+  Loader2, CheckCircle2, RefreshCw, X,
+} from "lucide-react";
+import { analyzeTimetable, type TimetableAnalysis } from "../lib/timetable";
+import { sendSos } from "../lib/sos";
 
 export const Route = createFileRoute("/")({
   component: CampusRideApp,
@@ -376,6 +386,8 @@ function HomeScreen({
             </button>
           </div>
         </div>
+        {/* AI onboarding / suggested ride */}
+        <AIRideCard go={go} />
 
         {/* Quick actions */}
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -470,6 +482,238 @@ function HomeScreen({
       </div>
     </div>
   );
+}
+
+const upcomingRides = [
+  { from: "Thapar Uni", to: "Chandigarh Sec 17", time: "Today, 1:15 PM", seats: 3 },
+  { from: "Girls Hostel B", to: "Elante Mall", time: "Tomorrow, 5:00 PM", seats: 2 },
+];
+
+const processingSteps = [
+  "Analyzing timetable...",
+  "Detecting class timings...",
+  "Finding students with similar schedules...",
+  "Generating ride recommendations...",
+];
+
+type AICardState = "setup" | "processing" | "suggested";
+
+// Canned schedule used by the "Use Demo Timetable" shortcut so users can
+// explore instantly without an upload or an API key.
+const DEMO_ANALYSIS: TimetableAnalysis = {
+  classTimings: [
+    { day: "Monday", subject: "Data Structures", startTime: "9:00 AM", endTime: "10:00 AM" },
+    { day: "Monday", subject: "DBMS", startTime: "11:00 AM", endTime: "12:00 PM" },
+    { day: "Tuesday", subject: "Operating Systems", startTime: "10:00 AM", endTime: "11:15 AM" },
+    { day: "Wednesday", subject: "Computer Networks", startTime: "12:00 PM", endTime: "1:15 PM" },
+  ],
+  lastClassEndTime: "1:15 PM",
+  days: ["Monday", "Tuesday", "Wednesday"],
+  subjects: ["Data Structures", "DBMS", "Operating Systems", "Computer Networks"],
+};
+
+function loadStoredAnalysis(): TimetableAnalysis | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("timetableAnalysis");
+    return raw ? (JSON.parse(raw) as TimetableAnalysis) : null;
+  } catch {
+    return null;
+  }
+}
+
+function AIRideCard({ go }: { go: (s: Screen) => void }) {
+  const [state, setState] = useState<AICardState>(() =>
+    typeof window !== "undefined" && localStorage.getItem("timetableUploaded") === "true"
+      ? "suggested"
+      : "setup"
+  );
+  const [visibleSteps, setVisibleSteps] = useState(0);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<TimetableAnalysis | null>(loadStoredAnalysis);
+  const [error, setError] = useState<string | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const demoTimer = useRef<number | null>(null);
+
+  const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (file) void analyzeFile(file);
+  };
+
+  // Reveal the processing checklist while the analysis runs.
+  useEffect(() => {
+    if (state !== "processing") return;
+    setVisibleSteps(0);
+    const timers = processingSteps.map((_, i) =>
+      window.setTimeout(() => setVisibleSteps(i + 1), 300 + i * 400)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [state]);
+
+  // Cancel a pending demo simulation if the card unmounts.
+  useEffect(() => () => {
+    if (demoTimer.current) clearTimeout(demoTimer.current);
+  }, []);
+
+  return (
+    <div className="mt-6 rounded-3xl p-5 glass-dark relative overflow-hidden">
+      <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-40 pointer-events-none"
+        style={{ background: "radial-gradient(circle, oklch(0.78 0.15 165) 0%, transparent 70%)" }} />
+
+      {/* Hidden native file pickers */}
+      <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={onFileSelected} />
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
+
+      {state === "setup" && (
+        <>
+          <div className="flex items-center gap-2 text-base font-bold tracking-tight text-white">
+            <Sparkles className="h-4 w-4 text-[color:var(--mint)]" /> 🤖 AI Ride Matching
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-white/75">
+            Upload your class timetable so CampusRide can recommend rides based on your schedule.
+          </p>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => pdfInputRef.current?.click()}
+              className="rounded-2xl px-3 py-3 flex items-center justify-center gap-2 text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/20 hover:border-white/30 transition-colors"
+            >
+              <FileText className="h-4 w-4 text-[color:var(--mint)]" /> Upload PDF
+            </button>
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              className="rounded-2xl px-3 py-3 flex items-center justify-center gap-2 text-sm font-semibold text-white bg-white/10 border border-white/15 hover:bg-white/20 hover:border-white/30 transition-colors"
+            >
+              <ImageIcon className="h-4 w-4 text-[color:var(--mint)]" /> Upload Image
+            </button>
+          </div>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/25" />
+            <span className="text-[11px] font-semibold tracking-widest text-white/70">OR</span>
+            <div className="h-px flex-1 bg-white/25" />
+          </div>
+
+          <button
+            onClick={() => useDemoTimetable()}
+            className="w-full gradient-brand rounded-2xl py-4 text-[15px] font-semibold tracking-tight flex items-center justify-center gap-2 shadow-[var(--shadow-soft)] hover:brightness-105 transition"
+          >
+            <Upload className="h-4 w-4" /> ✨ Use Demo Timetable (Recommended)
+          </button>
+          <p className="mt-3 text-[11px] text-center text-white/55">
+            Perfect for exploring CampusRide instantly.
+          </p>
+          {error && (
+            <p className="mt-3 text-[12px] text-center text-destructive flex items-center justify-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {error}
+            </p>
+          )}
+        </>
+      )}
+
+      {state === "processing" && (
+        <>
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Loader2 className="h-4 w-4 animate-spin text-[color:var(--mint)]" /> 🤖 AI Processing...
+          </div>
+          {fileName && (
+            <p className="mt-2 text-[13px] leading-snug text-muted-foreground flex items-center gap-1.5 truncate">
+              <FileText className="h-3.5 w-3.5 shrink-0 text-[color:var(--primary)]" />
+              <span className="truncate">{fileName}</span>
+            </p>
+          )}
+          <div className="mt-4 space-y-2.5">
+            {processingSteps.map((step, i) => (
+              <div
+                key={step}
+                className={`flex items-center gap-2 text-[13px] transition-opacity duration-300 ${
+                  i < visibleSteps ? "opacity-100" : "opacity-30"
+                }`}
+              >
+                {i < visibleSteps ? (
+                  <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)] shrink-0" />
+                ) : (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                )}
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {state === "suggested" && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[color:var(--mint)]">
+              <Sparkles className="h-3.5 w-3.5" /> AI SUGGESTED RIDE
+            </div>
+            <button
+              onClick={() => beginSetup()}
+              className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" /> Change Timetable
+            </button>
+          </div>
+          <p className="mt-2 text-[15px] leading-snug">
+            Based on your uploaded timetable, your last class ends at <span className="font-semibold">{analysis?.lastClassEndTime ?? "1:15 PM"}</span>. We found <span className="font-semibold">3 students</span> heading to <span className="font-semibold">Chandigarh</span> around the same time.
+          </p>
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex -space-x-2">
+              {["#8B5CF6", "#22C55E", "#F59E0B"].map((c, i) => (
+                <div key={i} className="h-8 w-8 rounded-full border-2 border-[oklch(0.22_0.05_250)]" style={{ background: c }} />
+              ))}
+            </div>
+            <button
+              onClick={() => go("details")}
+              className="rounded-full bg-white text-[color:var(--foreground)] px-4 py-2 text-sm font-semibold flex items-center gap-1"
+            >
+              Join ride <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Real upload path: send the file to the Gemini-backed server function.
+  async function analyzeFile(file: File) {
+    setError(null);
+    setFileName(file.name);
+    setState("processing");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const result = await analyzeTimetable({ data: form });
+      applyAnalysis(result);
+    } catch (err) {
+      setState("setup");
+      setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
+    }
+  }
+
+  // Demo path: no file, no API call — reuse the same processing flow.
+  function useDemoTimetable() {
+    setError(null);
+    setFileName(null);
+    setState("processing");
+    demoTimer.current = window.setTimeout(() => applyAnalysis(DEMO_ANALYSIS), 2000);
+  }
+
+  function applyAnalysis(result: TimetableAnalysis) {
+    setAnalysis(result);
+    localStorage.setItem("timetableUploaded", "true");
+    localStorage.setItem("timetableAnalysis", JSON.stringify(result));
+    setState("suggested");
+  }
+
+  function beginSetup() {
+    setError(null);
+    setFileName(null);
+    setState("setup");
+  }
 }
 
 function OfferRideScreen({ back }: { back: () => void }) {
@@ -1013,6 +1257,61 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
     : "Rohan K.";
   const driverInitials = ride?.driver.initials ?? "RK";
   const driverColor = ride?.driver.color ?? "#4F46E5";
+// Live trip / driver data used by the Call and SOS actions.
+const liveRide = {
+  rideId: "ride_rk_chd_0115",
+  userId: "aditi_sharma",
+  driver: { name: "Rohan K.", phone: "+919876543210" },
+};
+
+function LiveTripScreen({ back }: { back: () => void }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  function showToast(message: string, ok: boolean) {
+    setToast({ message, ok });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  }
+
+  function confirmSos() {
+    setConfirmOpen(false);
+    if (!("geolocation" in navigator)) {
+      showToast("Location isn't available on this device.", false);
+      return;
+    }
+    setSending(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await sendSos({
+            data: {
+              rideId: liveRide.rideId,
+              userId: liveRide.userId,
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              timestamp: new Date().toISOString(),
+            },
+          });
+          showToast("SOS sent successfully.", true);
+        } catch {
+          showToast("Couldn't send SOS. Please try again.", false);
+        } finally {
+          setSending(false);
+        }
+      },
+      () => {
+        setSending(false);
+        showToast("Enable location access to send an SOS.", false);
+      }
+    );
+  }
 
   return (
     <div className="relative h-full min-h-screen sm:min-h-full">
@@ -1095,6 +1394,9 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
         className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
         style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}
       >
+        onClick={() => setConfirmOpen(true)}
+        className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
+        style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}>
         <AlertTriangle className="h-6 w-6" />
       </button>
 
@@ -1116,9 +1418,12 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
               </div>
               <p className="text-xs text-muted-foreground">Hyundai i20 · PB-11-AK-2205</p>
             </div>
-            <button className="h-10 w-10 grid place-items-center rounded-full gradient-brand">
+            <a
+              href={`tel:${liveRide.driver.phone}`}
+              className="h-10 w-10 grid place-items-center rounded-full gradient-brand"
+            >
               <Phone className="h-4 w-4 text-white" />
-            </button>
+            </a>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -1134,9 +1439,65 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
             }}
           >
             <AlertTriangle className="h-4 w-4" /> Emergency SOS
+            onClick={() => setConfirmOpen(true)}
+            disabled={sending}
+            className="mt-4 w-full rounded-2xl py-3.5 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-70"
+            style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+            {sending ? "Sending SOS…" : "Emergency SOS"}
           </button>
         </div>
       </div>
+
+      {/* Success / error toast */}
+      {toast && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 glass rounded-2xl px-4 py-3 flex items-center gap-2 shadow-lg">
+          {toast.ok ? (
+            <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)] shrink-0" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+          )}
+          <span className="text-sm font-semibold">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Emergency SOS confirmation modal */}
+      {confirmOpen && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
+          <div className="relative glass rounded-3xl p-6 w-full max-w-[320px] text-center">
+            <button
+              onClick={() => setConfirmOpen(false)}
+              className="absolute right-3 top-3 h-8 w-8 grid place-items-center rounded-full bg-white/70"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto h-14 w-14 rounded-2xl grid place-items-center"
+              style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}>
+              <AlertTriangle className="h-7 w-7 text-white" />
+            </div>
+            <p className="mt-4 font-semibold text-lg">Send Emergency SOS?</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This shares your live location with CampusRide safety.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 glass rounded-2xl py-3 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSos}
+                className="flex-1 rounded-2xl py-3 font-semibold text-white"
+                style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
