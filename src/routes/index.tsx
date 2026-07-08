@@ -38,7 +38,9 @@ import {
   formatTime,
   MIN_DATE,
   type Ride,
+  type LatLng,
 } from "../lib/rides";
+import { LocationAutocomplete } from "../components/location-autocomplete";
 
 export const Route = createFileRoute("/")({
   component: CampusRideApp,
@@ -473,6 +475,8 @@ function HomeScreen({
 function OfferRideScreen({ back }: { back: () => void }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [fromCoords, setFromCoords] = useState<LatLng | null>(null);
+  const [toCoords, setToCoords] = useState<LatLng | null>(null);
   const [date, setDate] = useState(MIN_DATE());
   const [time, setTime] = useState("13:15");
   const [seats, setSeats] = useState(3);
@@ -484,7 +488,17 @@ function OfferRideScreen({ back }: { back: () => void }) {
 
   const handlePublish = () => {
     const costNum = Number(cost);
-    const input = { from, to, date, time, seats, cost: costNum, preferences: prefs };
+    const input = {
+      from,
+      to,
+      fromCoords,
+      toCoords,
+      date,
+      time,
+      seats,
+      cost: costNum,
+      preferences: prefs,
+    };
     const error = validateOffer(input);
     if (error) {
       toast.error(error);
@@ -508,11 +522,18 @@ function OfferRideScreen({ back }: { back: () => void }) {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Pickup
               </p>
-              <input
+              <LocationAutocomplete
                 value={from}
-                onChange={(e) => setFrom(e.target.value)}
+                onValueChange={(v) => {
+                  setFrom(v);
+                  setFromCoords(null);
+                }}
+                onSelect={(loc) => {
+                  setFrom(loc.name);
+                  setFromCoords({ lat: loc.lat, lng: loc.lng });
+                }}
                 placeholder="Pickup Location"
-                className="font-semibold truncate bg-transparent outline-none w-full"
+                inputClassName="font-semibold truncate bg-transparent outline-none w-full"
               />
             </div>
           </div>
@@ -525,11 +546,18 @@ function OfferRideScreen({ back }: { back: () => void }) {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Destination
               </p>
-              <input
+              <LocationAutocomplete
                 value={to}
-                onChange={(e) => setTo(e.target.value)}
+                onValueChange={(v) => {
+                  setTo(v);
+                  setToCoords(null);
+                }}
+                onSelect={(loc) => {
+                  setTo(loc.name);
+                  setToCoords({ lat: loc.lat, lng: loc.lng });
+                }}
                 placeholder="Destination"
-                className="font-semibold truncate bg-transparent outline-none w-full"
+                inputClassName="font-semibold truncate bg-transparent outline-none w-full"
               />
             </div>
           </div>

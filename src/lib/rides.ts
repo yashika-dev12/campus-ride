@@ -20,11 +20,15 @@ export type Driver = {
 
 export type RideStatus = "Available" | "Full";
 
+export type LatLng = { lat: number; lng: number };
+
 export type Ride = {
   id: string;
   driver: Driver;
   from: string;
   to: string;
+  fromCoords?: LatLng | null; // set when picked via location autocomplete
+  toCoords?: LatLng | null;
   date: string; // ISO yyyy-mm-dd
   time: string; // 24h HH:mm, formatted for display via formatTime()
   totalSeats: number;
@@ -303,6 +307,8 @@ export const rideStore = {
       driver,
       from: input.from.trim(),
       to: input.to.trim(),
+      fromCoords: input.fromCoords ?? null,
+      toCoords: input.toCoords ?? null,
       date: input.date,
       time: input.time,
       totalSeats: input.seats,
@@ -347,6 +353,8 @@ export const rideStore = {
 export type OfferRideInput = {
   from: string;
   to: string;
+  fromCoords?: LatLng | null;
+  toCoords?: LatLng | null;
   date: string; // ISO yyyy-mm-dd
   time: string; // HH:mm
   seats: number;
