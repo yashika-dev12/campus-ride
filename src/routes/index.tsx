@@ -5,9 +5,10 @@ import {
   Shield, Sparkles, ArrowRight, ArrowLeft, Navigation, Phone, AlertTriangle,
   GraduationCap, Mail, ChevronRight, Wallet, Car, LogOut, Settings,
   BadgeCheck, Calendar, Zap, Upload, FileText, Image as ImageIcon,
-  Loader2, CheckCircle2, RefreshCw,
+  Loader2, CheckCircle2, RefreshCw, X,
 } from "lucide-react";
 import { analyzeTimetable, type TimetableAnalysis } from "../lib/timetable";
+import { sendSos } from "../lib/sos";
 
 export const Route = createFileRoute("/")({
   component: CampusRideApp,
@@ -727,7 +728,62 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Live trip / driver data used by the Call and SOS actions.
+const liveRide = {
+  rideId: "ride_rk_chd_0115",
+  userId: "aditi_sharma",
+  driver: { name: "Rohan K.", phone: "+919876543210" },
+};
+
 function LiveTripScreen({ back }: { back: () => void }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  function showToast(message: string, ok: boolean) {
+    setToast({ message, ok });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  }
+
+  function confirmSos() {
+    setConfirmOpen(false);
+    if (!("geolocation" in navigator)) {
+      showToast("Location isn't available on this device.", false);
+      return;
+    }
+    setSending(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await sendSos({
+            data: {
+              rideId: liveRide.rideId,
+              userId: liveRide.userId,
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              timestamp: new Date().toISOString(),
+            },
+          });
+          showToast("SOS sent successfully.", true);
+        } catch {
+          showToast("Couldn't send SOS. Please try again.", false);
+        } finally {
+          setSending(false);
+        }
+      },
+      () => {
+        setSending(false);
+        showToast("Enable location access to send an SOS.", false);
+      }
+    );
+  }
+
   return (
     <div className="relative h-full min-h-screen sm:min-h-full">
       {/* Faux map */}
@@ -769,7 +825,9 @@ function LiveTripScreen({ back }: { back: () => void }) {
       </div>
 
       {/* SOS floating */}
-      <button className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
+      <button
+        onClick={() => setConfirmOpen(true)}
+        className="absolute right-4 top-40 z-10 h-14 w-14 rounded-full grid place-items-center text-white font-bold shadow-lg"
         style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}>
         <AlertTriangle className="h-6 w-6" />
       </button>
@@ -787,9 +845,12 @@ function LiveTripScreen({ back }: { back: () => void }) {
               </div>
               <p className="text-xs text-muted-foreground">Hyundai i20 · PB-11-AK-2205</p>
             </div>
-            <button className="h-10 w-10 grid place-items-center rounded-full gradient-brand">
+            <a
+              href={`tel:${liveRide.driver.phone}`}
+              className="h-10 w-10 grid place-items-center rounded-full gradient-brand"
+            >
               <Phone className="h-4 w-4 text-white" />
-            </button>
+            </a>
           </div>
 
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -798,12 +859,66 @@ function LiveTripScreen({ back }: { back: () => void }) {
             <Stat label="Arrive" value="1:55 PM" />
           </div>
 
-          <button className="mt-4 w-full rounded-2xl py-3.5 font-semibold text-white flex items-center justify-center gap-2"
+          <button
+            onClick={() => setConfirmOpen(true)}
+            disabled={sending}
+            className="mt-4 w-full rounded-2xl py-3.5 font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-70"
             style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}>
-            <AlertTriangle className="h-4 w-4" /> Emergency SOS
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+            {sending ? "Sending SOS…" : "Emergency SOS"}
           </button>
         </div>
       </div>
+
+      {/* Success / error toast */}
+      {toast && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 glass rounded-2xl px-4 py-3 flex items-center gap-2 shadow-lg">
+          {toast.ok ? (
+            <CheckCircle2 className="h-4 w-4 text-[color:var(--mint)] shrink-0" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+          )}
+          <span className="text-sm font-semibold">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Emergency SOS confirmation modal */}
+      {confirmOpen && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmOpen(false)} />
+          <div className="relative glass rounded-3xl p-6 w-full max-w-[320px] text-center">
+            <button
+              onClick={() => setConfirmOpen(false)}
+              className="absolute right-3 top-3 h-8 w-8 grid place-items-center rounded-full bg-white/70"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="mx-auto h-14 w-14 rounded-2xl grid place-items-center"
+              style={{ background: "linear-gradient(135deg, oklch(0.65 0.24 25), oklch(0.55 0.24 15))" }}>
+              <AlertTriangle className="h-7 w-7 text-white" />
+            </div>
+            <p className="mt-4 font-semibold text-lg">Send Emergency SOS?</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This shares your live location with CampusRide safety.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 glass rounded-2xl py-3 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSos}
+                className="flex-1 rounded-2xl py-3 font-semibold text-white"
+                style={{ background: "linear-gradient(135deg, oklch(0.6 0.24 25), oklch(0.5 0.24 15))" }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
