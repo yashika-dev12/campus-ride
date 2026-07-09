@@ -1510,7 +1510,7 @@ function SideNav({ current, go }: { current: Screen; go: (s: Screen) => void }) 
 /** Mobile & tablet bottom navigation. Hidden once the sidebar takes over (lg+). */
 function BottomNav({ current, go }: { current: Screen; go: (s: Screen) => void }) {
   return (
-    <div className="sticky bottom-0 z-30 px-4 pb-4 pt-2 lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-30 px-4 pb-4 pt-2 lg:hidden">
       <div className="glass mx-auto flex max-w-md justify-around rounded-3xl px-2 py-2">
         {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
           const active = current === id;
@@ -1728,22 +1728,11 @@ function HomeScreen({
   go: (s: Screen) => void;
   openDetails: (id: string) => void;
 }) {
-  const { user, rides } = useCampusRide();
+  const { user } = useCampusRide();
   const myRides = useMyRides();
 
   const firstName = user?.name.split(" ")[0] ?? "there";
   const initials = user?.initials ?? "AS";
-
-  // Live AI suggestion: the soonest real ride the user could actually join.
-  const suggestion = useMemo(
-    () =>
-      rides.find(
-        (r) =>
-          r.availableSeats > 0 &&
-          (!user || (r.driver.id !== user.id && !(r.passengers ?? []).includes(user.id))),
-      ),
-    [rides, user],
-  );
 
   return (
     <div className="pb-28 lg:pb-12">
@@ -1783,50 +1772,6 @@ function HomeScreen({
           {/* Primary column */}
           <div className="space-y-4 md:col-span-7 md:space-y-5 lg:space-y-6">
             <AIRideCard go={go} />
-
-            {/* Live AI-suggested ride based on real ride data */}
-            <div className="relative overflow-hidden rounded-3xl p-5 glass-dark sm:p-6">
-              <div
-                className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full opacity-40"
-                style={{
-                  background: "radial-gradient(circle, oklch(0.78 0.15 165) 0%, transparent 70%)",
-                }}
-              />
-              <div className="flex items-center gap-2 text-xs font-semibold text-[color:var(--mint)]">
-                <Sparkles className="h-3.5 w-3.5" /> AI SUGGESTED RIDE
-              </div>
-              {suggestion ? (
-                <p className="mt-2 text-[15px] leading-snug">
-                  Based on your class schedule and previous trips,{" "}
-                  <span className="font-semibold">{suggestion.driver.name}</span> is leaving for{" "}
-                  <span className="font-semibold">{suggestion.to}</span> at{" "}
-                  <span className="font-semibold">{formatTime(suggestion.time)}</span>.
-                </p>
-              ) : (
-                <p className="mt-2 text-[15px] leading-snug">
-                  No rides match your schedule right now.{" "}
-                  <span className="font-semibold">Offer a ride</span> and help peers get around
-                  campus.
-                </p>
-              )}
-              <div className="mt-4 flex items-center justify-between">
-                <div className="flex -space-x-2">
-                  {["#8B5CF6", "#22C55E", "#F59E0B"].map((c, i) => (
-                    <div
-                      key={i}
-                      className="h-8 w-8 rounded-full border-2 border-[oklch(0.22_0.05_250)]"
-                      style={{ background: c }}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => (suggestion ? openDetails(suggestion.id) : go("offer"))}
-                  className="flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[color:var(--foreground)]"
-                >
-                  {suggestion ? "Join ride" : "Offer ride"} <ArrowRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <button

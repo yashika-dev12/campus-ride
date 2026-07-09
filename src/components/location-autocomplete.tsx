@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, Loader2, MapPin, SearchX } from "lucide-react";
 import { MIN_QUERY_LENGTH, searchLocations, type PhotonLocation } from "../lib/photon";
 
@@ -41,6 +42,8 @@ export function LocationAutocomplete({
   const [status, setStatus] = useState<Status>("idle");
   const [active, setActive] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const listboxId = useId();
 
   const query = value.trim();
@@ -74,11 +77,34 @@ export function LocationAutocomplete({
     };
   }, [query, open, canSearch, debounceMs]);
 
+  // Keep the portaled dropdown pinned directly below the input, tracking scroll/resize.
+  useEffect(() => {
+    if (!open || !canSearch) return;
+    const update = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setRect({ left: r.left, top: r.bottom + 8, width: r.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, canSearch]);
+
   // Dismiss the dropdown when clicking outside the field.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        !(listRef.current && listRef.current.contains(target))
+      ) {
         setOpen(false);
       }
     };
@@ -133,12 +159,23 @@ export function LocationAutocomplete({
         autoComplete="off"
       />
 
-      {open && canSearch && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute left-0 right-0 z-50 mt-2 glass rounded-2xl p-1 max-h-64 overflow-y-auto shadow-[var(--shadow-soft)]"
-        >
+      {open &&
+        canSearch &&
+        rect &&
+        createPortal(
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            style={{
+              position: "fixed",
+              left: rect.left,
+              top: rect.top,
+              width: rect.width,
+              zIndex: 9999,
+            }}
+            className="glass rounded-2xl p-1 max-h-64 overflow-y-auto shadow-[var(--shadow-soft)]"
+          >
           {status === "loading" && (
             <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching locations…
@@ -172,8 +209,9 @@ export function LocationAutocomplete({
                 <span className="text-sm font-medium leading-snug">{loc.name}</span>
               </button>
             ))}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
