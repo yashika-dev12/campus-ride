@@ -1358,6 +1358,7 @@ import { LocationAutocomplete } from "../components/location-autocomplete";
 import { analyzeTimetable, type TimetableAnalysis } from "../lib/timetable";
 import { ImpactSection } from "../components/ImpactSection";
 import { sendSos } from "../lib/sos";
+import { LiveMap } from "../components/live-map";
 
 export const Route = createFileRoute("/")({
   component: CampusRideApp,
@@ -2036,7 +2037,7 @@ function AIRideCard({ go }: { go: (s: Screen) => void }) {
           </div>
 
           <button
-            onClick={() => useDemoTimetable()}
+            onClick={() => loadDemoTimetable()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl gradient-brand py-4 text-[15px] font-semibold tracking-tight shadow-[var(--shadow-soft)] transition hover:brightness-105"
           >
             <Upload className="h-4 w-4" /> ✨ Use Demo Timetable (Recommended)
@@ -2142,7 +2143,7 @@ function AIRideCard({ go }: { go: (s: Screen) => void }) {
   }
 
   // Demo path: no file, no API call — reuse the same processing flow.
-  function useDemoTimetable() {
+  function loadDemoTimetable() {
     setError(null);
     setFileName(null);
     setState("processing");
@@ -2827,57 +2828,8 @@ function LiveTripScreen({ back, rideId }: { back: () => void; rideId: string | n
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden">
-      {/* Faux map — fills the whole viewport at every screen size. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "linear-gradient(135deg, oklch(0.9 0.05 200) 0%, oklch(0.88 0.07 165) 100%)",
-        }}
-      >
-        <svg
-          className="absolute inset-0 h-full w-full opacity-70"
-          viewBox="0 0 400 800"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path
-                d="M 40 0 L 0 0 0 40"
-                fill="none"
-                stroke="white"
-                strokeWidth="0.5"
-                opacity="0.6"
-              />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-          <path
-            d="M 40 700 Q 120 500 180 420 T 340 120"
-            stroke="oklch(0.55 0.18 240)"
-            strokeWidth="5"
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray="0"
-          />
-          <path
-            d="M 40 700 Q 120 500 180 420"
-            stroke="oklch(0.78 0.15 165)"
-            strokeWidth="5"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <circle cx="40" cy="700" r="10" fill="oklch(0.55 0.18 240)" />
-          <circle cx="340" cy="120" r="10" fill="oklch(0.78 0.15 165)" />
-          <circle
-            cx="180"
-            cy="420"
-            r="14"
-            fill="white"
-            stroke="oklch(0.55 0.18 240)"
-            strokeWidth="4"
-          />
-        </svg>
-      </div>
+      {/* Interactive map — fills the whole viewport at every screen size. */}
+      <LiveMap className="absolute inset-0" />
 
       {/* Top bar */}
       <div className="relative z-10 px-4 pt-12 sm:px-6 lg:pt-8">
