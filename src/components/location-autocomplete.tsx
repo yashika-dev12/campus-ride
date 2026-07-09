@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertCircle, Loader2, MapPin, SearchX } from "lucide-react";
 import { MIN_QUERY_LENGTH, searchLocations, type PhotonLocation } from "../lib/photon";
 
@@ -40,7 +41,11 @@ export function LocationAutocomplete({
   const [results, setResults] = useState<PhotonLocation[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [active, setActive] = useState(-1);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
 
   const query = value.trim();
@@ -74,17 +79,43 @@ export function LocationAutocomplete({
     };
   }, [query, open, canSearch, debounceMs]);
 
-  // Dismiss the dropdown when clicking outside the field.
+  // Dismiss the dropdown when clicking outside the field or its dropdown. The
+  // dropdown renders in a portal (outside the container), so both refs count as
+  // "inside" — otherwise a mousedown on an option would close before the click.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inField = containerRef.current?.contains(target);
+      const inList = listRef.current?.contains(target);
+      if (!inField && !inList) setOpen(false);
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  // Anchor the portal dropdown directly below the input. Because it renders
+  // fixed on <body> at these viewport coordinates, it escapes every parent
+  // stacking context / overflow clip and overlays all surrounding cards. The
+  // position is re-measured on scroll (capture phase catches inner scrollers)
+  // and resize so it stays glued to the field.
+  const showDropdown = open && canSearch;
+  useLayoutEffect(() => {
+    if (!showDropdown) return;
+    const update = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setPosition({ top: rect.bottom + 8, left: rect.left, width: rect.width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [showDropdown, results, status]);
 
   const choose = (loc: PhotonLocation) => {
     onSelect(loc);
@@ -133,47 +164,59 @@ export function LocationAutocomplete({
         autoComplete="off"
       />
 
-      {open && canSearch && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute left-0 right-0 z-50 mt-2 glass rounded-2xl p-1 max-h-64 overflow-y-auto shadow-[var(--shadow-soft)]"
-        >
-          {status === "loading" && (
-            <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching locations…
-            </div>
-          )}
-          {status === "error" && (
-            <div className="flex items-center gap-2 px-3 py-3 text-xs text-destructive">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Couldn&apos;t load locations. Check
-              your connection and try again.
-            </div>
-          )}
-          {status === "done" && results.length === 0 && (
-            <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
-              <SearchX className="h-3.5 w-3.5 shrink-0" /> No locations found
-            </div>
-          )}
-          {status === "done" &&
-            results.map((loc, i) => (
-              <button
-                key={`${loc.name}-${loc.lat}-${loc.lng}`}
-                type="button"
-                role="option"
-                aria-selected={i === active}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => choose(loc)}
-                className={`w-full text-left flex items-start gap-2 px-3 py-2.5 rounded-xl transition ${
-                  i === active ? "bg-white/70" : "hover:bg-white/50"
-                }`}
-              >
-                <MapPin className="h-4 w-4 mt-0.5 text-[color:var(--primary)] shrink-0" />
-                <span className="text-sm font-medium leading-snug">{loc.name}</span>
-              </button>
-            ))}
-        </div>
-      )}
+      {showDropdown &&
+        position &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            style={{
+              position: "fixed",
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              zIndex: 9999,
+            }}
+            className="glass rounded-2xl p-1 max-h-64 overflow-y-auto shadow-[var(--shadow-soft)]"
+          >
+            {status === "loading" && (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching locations…
+              </div>
+            )}
+            {status === "error" && (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Couldn&apos;t load locations. Check
+                your connection and try again.
+              </div>
+            )}
+            {status === "done" && results.length === 0 && (
+              <div className="flex items-center gap-2 px-3 py-3 text-xs text-muted-foreground">
+                <SearchX className="h-3.5 w-3.5 shrink-0" /> No locations found
+              </div>
+            )}
+            {status === "done" &&
+              results.map((loc, i) => (
+                <button
+                  key={`${loc.name}-${loc.lat}-${loc.lng}`}
+                  type="button"
+                  role="option"
+                  aria-selected={i === active}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(loc)}
+                  className={`w-full text-left flex items-start gap-2 px-3 py-2.5 rounded-xl transition ${
+                    i === active ? "bg-white/70" : "hover:bg-white/50"
+                  }`}
+                >
+                  <MapPin className="h-4 w-4 mt-0.5 text-[color:var(--primary)] shrink-0" />
+                  <span className="text-sm font-medium leading-snug">{loc.name}</span>
+                </button>
+              ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
