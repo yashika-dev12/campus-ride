@@ -271,7 +271,7 @@
 //                 <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3">
 //                   <Mail className="h-4 w-4 text-muted-foreground" />
 //                   <input
-//                     defaultValue="aditi.sharma@thapar.edu"
+//                     defaultValue="aditi.sharma@chitkara.edu"
 //                     className="min-w-0 flex-1 bg-transparent text-sm outline-none"
 //                   />
 //                 </div>
@@ -445,7 +445,7 @@
 // }
 
 // const upcomingRides = [
-//   { from: "Thapar Uni", to: "Chandigarh Sec 17", time: "Today, 1:15 PM", seats: 3 },
+//   { from: "Chitkara  Uni", to: "Chandigarh Sec 17", time: "Today, 1:15 PM", seats: 3 },
 //   { from: "Girls Hostel B", to: "Elante Mall", time: "Tomorrow, 5:00 PM", seats: 2 },
 // ];
 
@@ -713,7 +713,7 @@
 //               <Field
 //                 icon={<MapPin className="h-4 w-4 text-[color:var(--primary)]" />}
 //                 label="Pickup"
-//                 value="Thapar University, Main Gate"
+//                 value="Chitkara  University, Main Gate"
 //               />
 //               <div className="ml-6 h-3 border-l-2 border-dashed border-white/70" />
 //               <Field
@@ -787,7 +787,7 @@
 //         <button
 //           onClick={() => {
 //             createRide({
-//               from: "Thapar University",
+//               from: "Chitkara  University",
 //               to: "Chandigarh, Sector 17",
 //               distanceKm: 62,
 //               seatsTotal: 3,
@@ -823,7 +823,7 @@
 //   {
 //     name: "Rohan K.",
 //     dept: "CSE '25",
-//     from: "Thapar Uni",
+//     from: "Chitkara  Uni",
 //     to: "Chandigarh Sec 17",
 //     time: "1:15 PM",
 //     seats: 3,
@@ -834,7 +834,7 @@
 //   {
 //     name: "Priya M.",
 //     dept: "ECE '26",
-//     from: "Thapar Uni",
+//     from: "Chitkara  Uni",
 //     to: "Elante Mall",
 //     time: "2:00 PM",
 //     seats: 2,
@@ -856,7 +856,7 @@
 //   {
 //     name: "Neha V.",
 //     dept: "Design '27",
-//     from: "Thapar Uni",
+//     from: "Chitkara  Uni",
 //     to: "Mohali Airport",
 //     time: "6:00 PM",
 //     seats: 3,
@@ -877,7 +877,7 @@
 //               <Field
 //                 icon={<MapPin className="h-4 w-4 text-[color:var(--primary)]" />}
 //                 label="From"
-//                 value="Thapar University"
+//                 value="Chitkara  University"
 //               />
 //               <Field
 //                 icon={<Navigation className="h-4 w-4 text-[color:var(--mint)]" />}
@@ -973,7 +973,7 @@
 //                     <p className="text-lg font-semibold">Rohan Kapoor</p>
 //                     <BadgeCheck className="h-5 w-5 text-[color:var(--primary)]" />
 //                   </div>
-//                   <p className="text-xs text-muted-foreground">CSE '25 · Thapar University</p>
+//                   <p className="text-xs text-muted-foreground">CSE '25 · Chitkara  University</p>
 //                   <div className="mt-1 flex items-center gap-3 text-xs">
 //                     <span className="flex items-center gap-1 font-semibold">
 //                       <Star className="h-3.5 w-3.5 fill-[color:var(--mint)] text-[color:var(--mint)]" />{" "}
@@ -1002,7 +1002,7 @@
 //                     <p className="text-[11px] font-semibold uppercase text-muted-foreground">
 //                       1:15 PM · Pickup
 //                     </p>
-//                     <p className="font-semibold">Thapar University, Main Gate</p>
+//                     <p className="font-semibold">Chitkara  University, Main Gate</p>
 //                   </div>
 //                   <div>
 //                     <p className="text-[11px] font-semibold uppercase text-muted-foreground">
@@ -1243,7 +1243,7 @@
 //               <p className="text-lg font-semibold">Aditi Sharma</p>
 //               <BadgeCheck className="h-5 w-5 text-[color:var(--primary)]" />
 //             </div>
-//             <p className="text-xs text-muted-foreground">CSE '26 · Thapar University</p>
+//             <p className="text-xs text-muted-foreground">CSE '26 · Chitkara  University</p>
 //             <div className="mt-4 flex items-center justify-center gap-2 text-xs">
 //               <span className="glass flex items-center gap-1 rounded-full px-3 py-1">
 //                 <GraduationCap className="h-3 w-3" /> Verified student
@@ -1582,7 +1582,7 @@ function ScreenBody({
 
 function LoginScreen({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<"email" | "otp">("email");
-  const [email, setEmail] = useState("aditi.sharma@thapar.edu");
+  const [email, setEmail] = useState("aditi.sharma@chitkara.edu");
 
   const emailValid = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
@@ -2523,6 +2523,94 @@ function FindRideScreen({ back, onSelect }: { back: () => void; onSelect: (id: s
   );
 }
 
+const REMINDER_STORAGE_KEY = "campus-ride:reminders";
+const REMINDER_OPTIONS = [5, 10, 15, 30] as const;
+
+function loadReminders(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(REMINDER_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveReminder(rideId: string, minutes: number | null) {
+  if (typeof window === "undefined") return;
+  try {
+    const all = loadReminders();
+    if (minutes === null) {
+      delete all[rideId];
+    } else {
+      all[rideId] = minutes;
+    }
+    window.localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    /* storage unavailable — keep selection in memory */
+  }
+}
+
+function LeaveByReminder({ rideId }: { rideId: string }) {
+  const [minutes, setMinutes] = useState<number | null>(
+    () => loadReminders()[rideId] ?? null,
+  );
+
+  const handleSelect = (value: number) => {
+    setMinutes(value);
+    saveReminder(rideId, value);
+    toast.success(`Reminder set for ${value} minutes before your ride.`);
+  };
+
+  const handleRemove = () => {
+    setMinutes(null);
+    saveReminder(rideId, null);
+    toast.success("Reminder removed.");
+  };
+
+  return (
+    <div className="glass mt-4 rounded-3xl p-5">
+      <div className="flex items-center gap-2">
+        <Bell className="h-5 w-5 text-[color:var(--primary)]" />
+        <p className="text-sm font-semibold">Leave-by reminder</p>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {minutes !== null
+          ? `Reminder set for ${minutes} minutes before your ride.`
+          : "Get a nudge before you need to leave."}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {REMINDER_OPTIONS.map((value) => {
+          const active = value === minutes;
+          return (
+            <button
+              key={value}
+              onClick={() => handleSelect(value)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                active
+                  ? "gradient-brand shadow-[var(--shadow-soft)]"
+                  : "bg-white/60 text-muted-foreground hover:bg-white/80"
+              }`}
+            >
+              {value} min before
+            </button>
+          );
+        })}
+      </div>
+      {minutes !== null && (
+        <button
+          onClick={handleRemove}
+          className="mt-3 flex items-center gap-1 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" /> Remove reminder
+        </button>
+      )}
+    </div>
+  );
+}
+
 function RideDetailsScreen({
   rideId,
   back,
@@ -2592,7 +2680,7 @@ function RideDetailsScreen({
                     <BadgeCheck className="h-5 w-5 text-[color:var(--primary)]" />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {ride.driver.dept} · Thapar University
+                    {ride.driver.dept} · Chitkara  University
                   </p>
                   <div className="mt-1 flex items-center gap-3 text-xs">
                     <span className="flex items-center gap-1 font-semibold">
@@ -2672,6 +2760,8 @@ function RideDetailsScreen({
             </div>
           </div>
         </div>
+
+        {alreadyJoined && <LeaveByReminder rideId={ride.id} />}
 
         <button
           onClick={handleJoin}
@@ -2963,7 +3053,7 @@ function ProfileScreen({ back, onLogout }: { back: () => void; onLogout: () => v
               <p className="text-lg font-semibold">{name}</p>
               <BadgeCheck className="h-5 w-5 text-[color:var(--primary)]" />
             </div>
-            <p className="text-xs text-muted-foreground">{dept} · Thapar University</p>
+            <p className="text-xs text-muted-foreground">{dept} · Chitkara  University</p>
             <div className="mt-4 flex items-center justify-center gap-2 text-xs">
               <span className="glass flex items-center gap-1 rounded-full px-3 py-1">
                 <GraduationCap className="h-3 w-3" /> Verified student
